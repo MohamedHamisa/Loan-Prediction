@@ -1,95 +1,160 @@
-import pandas as pd
-import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.preprocessing import LabelEncoder
-from sklearn.linear_model import LogisticRegression
+%pip install seaborn
+
+# Importing necessary libraries for warning handling
+import warnings
+
+# Importing third-party libraries for data manipulation, numerical operations, and visualization
+import pandas as pd  # For data manipulation and CSV file I/O
+import numpy as np  # For numerical operations and mathematical functions
+import matplotlib.pyplot as plt  # For data visualization
+import seaborn as sns  # For statistical graphics
+
+# Importing libraries from scikit-learn for machine learning tasks
+from sklearn.model_selection import train_test_split  # For data splitting (training & testing)
+from sklearn.preprocessing import MinMaxScaler, StandardScaler  # For feature standardization and normalization
+from sklearn.metrics import accuracy_score, classification_report  # For model evaluation metrics
+from sklearn.impute import SimpleImputer  # For handling missing values
+
+# Importing library for colored text output
+from termcolor import colored
+
+# Suppressing warnings for cleaner output
+warnings.filterwarnings('ignore')
+
+# Printing a success message in green text with reverse attribute
+print(colored("The required libraries were successfully imported...", "red", attrs=['reverse']))
+
+# Loading the dataset
+loan_data = pd.read_csv('loan_data.csv')
+
+# Displaying the first few rows of the dataset
+print(loan_data.head())
+
+# Displaying basic information about the dataset
+loan_data.info()
+
+# Checking for missing values
+missing_values = loan_data.isnull().sum()
+print(missing_values)
+
+# Handling non-numeric values
+loan_data['Dependents'].replace('3+', 3, inplace=True)
+loan_data['Dependents'] = loan_data['Dependents'].astype(float)
+
+# Columns with numerical values
+num_columns = ['LoanAmount', 'Loan_Amount_Term', 'Credit_History', 'Dependents']
+
+# Imputing missing values in numerical columns with median
+num_imputer = SimpleImputer(strategy='median')
+loan_data[num_columns] = num_imputer.fit_transform(loan_data[num_columns])
+
+# Columns with categorical values
+cat_columns = ['Gender', 'Married', 'Education', 'Self_Employed', 'Property_Area']
+
+# Imputing missing values in categorical columns with mode
+cat_imputer = SimpleImputer(strategy='most_frequent')
+loan_data[cat_columns] = cat_imputer.fit_transform(loan_data[cat_columns])
+
+# Verifying that there are no more missing values
+print(loan_data.isnull().sum())
+
+# Label encoding for categorical variables
+loan_data['Gender'] = loan_data['Gender'].map({'Male': 1, 'Female': 0})
+loan_data['Married'] = loan_data['Married'].map({'Yes': 1, 'No': 0})
+loan_data['Education'] = loan_data['Education'].map({'Graduate': 1, 'Not Graduate': 0})
+loan_data['Self_Employed'] = loan_data['Self_Employed'].map({'Yes': 1, 'No': 0})
+loan_data['Property_Area'] = loan_data['Property_Area'].map({'Urban': 2, 'Semiurban': 1, 'Rural': 0})
+loan_data['Loan_Status'] = loan_data['Loan_Status'].map({'Y': 1, 'N': 0})
+
+# Distribution of Numerical Features
+plt.figure(figsize=(12, 10))
+for i, col in enumerate(num_columns, 1):
+    plt.subplot(2, 2, i)
+    sns.histplot(loan_data[col], kde=True, bins=30)
+    plt.title(f'Distribution of {col}')
+plt.tight_layout()
+plt.show()
+
+# Count Plots for Categorical Features
+plt.figure(figsize=(12, 10))
+for i, col in enumerate(cat_columns, 1):
+    plt.subplot(3, 2, i)
+    sns.countplot(data=loan_data, x=col)
+    plt.title(f'Count Plot of {col}')
+plt.tight_layout()
+plt.show()
+
+# Correlation Heatmap
+plt.figure(figsize=(10, 8))
+corr = loan_data.corr()
+sns.heatmap(corr, annot=True, cmap='coolwarm', linewidths=0.5)
+plt.title('Correlation Heatmap')
+plt.show()
+
+# Pair Plot
+sns.pairplot(loan_data, hue='Loan_Status')
+plt.show()
+
+# Box Plots to Identify Outliers
+plt.figure(figsize=(12, 10))
+for i, col in enumerate(num_columns, 1):
+    plt.subplot(2, 2, i)
+    sns.boxplot(data=loan_data, y=col)
+    plt.title(f'Box Plot of {col}')
+plt.tight_layout()
+plt.show()
+
+# Splitting the data into features and target variable
+X = loan_data.drop(columns=['Loan_ID', 'Loan_Status'])
+y = loan_data['Loan_Status']
+
+# Splitting the dataset into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Initializing scalers
+scaler = MinMaxScaler()
+
+# Scaling the features
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+# Importing machine learning models
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
-from sklearn.metrics import confusion_matrix
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.naive_bayes import GaussianNB, BernoulliNB
+from sklearn.linear_model import LogisticRegression, RidgeClassifierCV
+from sklearn.neighbors import KNeighborsClassifier
 
-# Load the dataset (replace with correct local path or valid direct download link)
-# df = pd.read_csv("path_to_your_dataset.csv")
-# For example:
-# df = pd.read_csv("loan_dataset.csv")
+# Initializing models
+models = {
+    "Decision Tree Classifier": DecisionTreeClassifier(random_state=42),
+    "Random Forest Classifier": RandomForestClassifier(random_state=42),
+    "GaussianNB": GaussianNB(),
+    "BernoulliNB": BernoulliNB(),
+    "Logistic Regression": LogisticRegression(max_iter=1000, random_state=42),
+    "Ridge Classifier CV": RidgeClassifierCV(),
+    "K-Nearest Neighbors (KNN)": KNeighborsClassifier()
+}
 
-# Example code with corrected data loading
-try:
-    df = pd.read_csv("loan_dataset.csv")  # Replace with your dataset path
-except FileNotFoundError:
-    print("Dataset file not found. Please provide the correct path or URL.")
+# Training and evaluating models
+model_train_scores = {}
+model_test_scores = {}
 
-# Check loaded data
-print(df.head())
-print(df.info())
+for model_name, model in models.items():
+    model.fit(X_train, y_train)
+    train_accuracy = model.score(X_train, y_train)
+    test_accuracy = model.score(X_test, y_test)
+    model_train_scores[model_name] = train_accuracy
+    model_test_scores[model_name] = test_accuracy
+    print(colored(f"{model_name} Training Score: {train_accuracy:.2f}", "green"))
+    print(colored(f"{model_name} Testing Score: {test_accuracy:.2f}", "green"))
 
-# Data cleaning and preprocessing
-# Fill missing values
-df['LoanAmount'].fillna(df['LoanAmount'].mean(), inplace=True)
-df['Loan_Amount_Term'].fillna(df['Loan_Amount_Term'].mean(), inplace=True)
-df['Credit_History'].fillna(df['Credit_History'].mean(), inplace=True)
-df['Gender'].fillna(df['Gender'].mode()[0], inplace=True)
-df['Married'].fillna(df['Married'].mode()[0], inplace=True)
-df['Dependents'].fillna(df['Dependents'].mode()[0], inplace=True)
-df['Self_Employed'].fillna(df['Self_Employed'].mode()[0], inplace=True)
+# Saving the best model using pickle
+import pickle
 
-# Data visualization
-plt.figure(figsize=(10, 6))
-sns.countplot(df['Gender'])
-plt.title('Distribution of Gender')
-plt.show()
+best_model = models["Random Forest Classifier"]  # Example, choose the best performing model
+filename = 'best_model.pkl'
+with open(filename, 'wb') as file:
+    pickle.dump(best_model, file)
 
-plt.figure(figsize=(10, 6))
-sns.distplot(df['ApplicantIncome'])
-plt.title('Distribution of Applicant Income')
-plt.show()
-
-# Convert categorical to numerical
-cols = ['Gender', 'Married', 'Education', 'Self_Employed', 'Property_Area', 'Loan_Status', 'Dependents']
-le = LabelEncoder()
-for col in cols:
-    df[col] = le.fit_transform(df[col])
-
-# Split data into train and test sets
-X = df.drop(columns=['Loan_Status'], axis=1)
-y = df['Loan_Status']
-x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
-
-# Define function to classify and evaluate models
-def classify(model, x, y):
-    model.fit(x_train, y_train)
-    print("Accuracy is", model.score(x_test, y_test) * 100)
-    score = cross_val_score(model, x, y, cv=5)
-    print("Cross validation is", np.mean(score) * 100)
-
-# Example usage
-model = LogisticRegression()
-classify(model, X, y)
-
-model = DecisionTreeClassifier()
-classify(model, X, y)
-
-model = RandomForestClassifier()
-classify(model, X, y)
-
-model = ExtraTreesClassifier()
-classify(model, X, y)
-
-# Fine-tune Random Forest Classifier
-model = RandomForestClassifier(n_estimators=100, min_samples_split=25, max_depth=7, max_features=1)
-classify(model, X, y)
-
-# Fit Random Forest Classifier on the training data
-model = RandomForestClassifier()
-model.fit(x_train, y_train)
-
-# Evaluate model using confusion matrix
-y_pred = model.predict(x_test)
-cm = confusion_matrix(y_test, y_pred)
-plt.figure(figsize=(8, 6))
-sns.heatmap(cm, annot=True, cmap='Blues', fmt='g')
-plt.xlabel('Predicted')
-plt.ylabel('Actual')
-plt.title('Confusion Matrix')
-plt.show()
+print(colored("The best model was successfully saved to disk.", "red", attrs=['reverse']))
